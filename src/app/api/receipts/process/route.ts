@@ -11,10 +11,10 @@
  * ===================================================== */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { processReceipt } from '@/lib/ocr/vision';
 import { getCurrentUser, hasPermission, effectiveOwnerId } from '@/lib/auth/rbac';
+import { TIER_RECEIPT_LIMIT, type SubscriptionTier } from '@/lib/payments/stripe';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const maxDuration = 30; // Vercel function timeout
 
@@ -34,24 +34,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // We still need a Supabase client for any DB work, so create one
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set() {},
-          remove() {},
-        },
-      }
-    );
-
     // Effective owner for data ownership
     const ownerId = effectiveOwnerId(rbacUser);
+
+    // ── Usage limit check (server-side) ──────────────
+    const { data: ownerProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', ownerId)
+      .single();
+
+    const tier = (ownerProfile?.subscription_tier ?? 'solo') as SubscriptionTier;
+    const limit = TIER_RECEIPT_LIMIT[tier] ?? 200;
+
+    if (limit !== -1) {
+      const now = new Date();
+      const startOfMonth = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+      ).toISOString();
+
+      const { count } = await supabaseAdmin
+        .from('receipts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', ownerId)
+        .gte('created_at', startOfMonth);
+
+      if ((count ?? 0) >= limit) {
+        return NextResponse.json(
+          {
+            error: `Monthly receipt limit reached (${count}/${limit}). Upgrade your plan to continue.`,
+            code: 'USAGE_LIMIT',
+          },
+          { status: 429 },
+        );
+      }
+    }
 
     // ── Parse multipart form ─────────────────────────
     const formData = await req.formData();

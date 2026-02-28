@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getCurrentUser, effectiveOwnerId } from '@/lib/auth/rbac';
 import { stripe, PRICE_REVERSE_MAP } from '@/lib/payments/stripe';
 
@@ -11,9 +11,8 @@ export async function GET(_request: NextRequest) {
     }
 
     const ownerId = effectiveOwnerId(user);
-    const supabase = await createSupabaseServerClient();
 
-    const { data: profile, error } = await supabase
+    const { data: profile, error } = await supabaseAdmin
       .from('profiles')
       .select('subscription_tier, subscription_status, stripe_customer_id')
       .eq('id', ownerId)

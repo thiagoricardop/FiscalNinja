@@ -334,6 +334,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
+    gap: 2,
   },
   th: {
     fontSize: 6.5,
@@ -348,6 +349,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
     borderBottomWidth: 0.5,
     borderBottomColor: BORDER,
+    gap: 2,
   },
   tRowAlt: { backgroundColor: LIGHT },
   td: { fontSize: 8, color: TEXT_COLOR },
@@ -610,13 +612,13 @@ function computeTimeSeries(receipts: PDFReceipt[]): { label: string; amount: num
 // ═══════════════════════════════════════════════════════
 
 const COL = {
-  num: '5%', date: '11%', vendor: '21%', cat: '12%',
-  amount: '12%', tax: '10%', method: '13%', driver: '16%',
+  num: '5%', date: '10%', vendor: '20%', cat: '12%',
+  amount: '14%', tax: '12%', method: '14%', driver: '15%',
 };
 
 const COL_SUM = {
-  date: '14%', vendor: '28%', cat: '16%',
-  amount: '16%', driver: '14%', method: '12%',
+  date: '13%', vendor: '25%', cat: '15%',
+  amount: '15%', driver: '16%', method: '14%',
 };
 
 // ═══════════════════════════════════════════════════════

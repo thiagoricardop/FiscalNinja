@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe, PRICE_REVERSE_MAP } from '@/lib/payments/stripe';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,8 +24,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  const supabase = await createSupabaseServerClient();
-
   try {
     switch (event.type) {
       // ── Checkout completed → activate subscription ───────────────────────
@@ -40,7 +38,7 @@ export async function POST(request: NextRequest) {
           break;
         }
 
-        await supabase
+        await supabaseAdmin
           .from('profiles')
           .update({
             stripe_customer_id: customerId,
@@ -69,7 +67,7 @@ export async function POST(request: NextRequest) {
           status = 'cancelled';
         }
 
-        await supabase
+        await supabaseAdmin
           .from('profiles')
           .update({ subscription_tier: tier, subscription_status: status })
           .eq('stripe_customer_id', customerId);
@@ -82,7 +80,7 @@ export async function POST(request: NextRequest) {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = sub.customer as string;
 
-        await supabase
+        await supabaseAdmin
           .from('profiles')
           .update({ subscription_status: 'cancelled' })
           .eq('stripe_customer_id', customerId);
@@ -95,10 +93,26 @@ export async function POST(request: NextRequest) {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
 
-        await supabase
+        await supabaseAdmin
           .from('profiles')
           .update({ subscription_status: 'past_due' })
           .eq('stripe_customer_id', customerId);
+
+        break;
+      }
+
+      // ── Payment succeeded (reactivate after past_due) ─────────────────
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+
+        // Only update profiles currently in past_due so we don't
+        // accidentally overwrite a fresh checkout flow.
+        await supabaseAdmin
+          .from('profiles')
+          .update({ subscription_status: 'active' })
+          .eq('stripe_customer_id', customerId)
+          .eq('subscription_status', 'past_due');
 
         break;
       }

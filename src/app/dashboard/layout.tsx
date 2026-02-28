@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
 import { usePathname } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -47,17 +46,15 @@ export default function DashboardLayout({
     user?.user_metadata?.company_name || 'My Company'
   );
 
-  // Fetch company name from profiles table (updated by settings)
+  // Fetch company name from profiles via API (bypasses RLS)
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from('profiles')
-      .select('company_name')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }) => {
+    fetch('/api/profile')
+      .then((res) => res.json())
+      .then((data) => {
         if (data?.company_name) setCompanyName(data.company_name);
-      });
+      })
+      .catch(() => {});
   }, [user]);
 
   const initials = companyName

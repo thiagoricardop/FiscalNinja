@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 // ─── Singleton Stripe instance ────────────────────────────────────────────────
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -29,6 +29,13 @@ export const TIER_PRICE: Record<SubscriptionTier, number> = {
   enterprise: 149,
 };
 
+/** Monthly receipt upload limits per tier (-1 = unlimited) */
+export const TIER_RECEIPT_LIMIT: Record<SubscriptionTier, number> = {
+  solo: 200,
+  fleet: 1000,
+  enterprise: -1,
+};
+
 // ─── Customer helper ──────────────────────────────────────────────────────────
 
 /**
@@ -39,10 +46,8 @@ export async function getOrCreateStripeCustomer(
   userId: string,
   email: string,
 ): Promise<string> {
-  const supabase = await createSupabaseServerClient();
-
   // Check for existing customer ID
-  const { data: profile } = await supabase
+  const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('stripe_customer_id')
     .eq('id', userId)
@@ -59,7 +64,7 @@ export async function getOrCreateStripeCustomer(
   });
 
   // Persist to DB
-  await supabase
+  await supabaseAdmin
     .from('profiles')
     .update({ stripe_customer_id: customer.id })
     .eq('id', userId);

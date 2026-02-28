@@ -1,3 +1,4 @@
+// fiscalninja.co — Next.js config
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -5,6 +6,10 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: '**.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.supabase.in',
       },
     ],
   },

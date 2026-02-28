@@ -114,6 +114,7 @@ export default function ReceiptUpload({
   const { user } = useUser();
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [globalError, setGlobalError] = useState('');
+  const [usageLimitHit, setUsageLimitHit] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
 
   // Fetch drivers/trucks if not passed as props
@@ -263,6 +264,23 @@ export default function ReceiptUpload({
 
   const confirmReceipt = async (item: QueuedFile) => {
     if (!user || !item.editData) return;
+
+    // ── Usage limit check ─────────────────────────
+    try {
+      const usageRes = await fetch('/api/stripe/usage');
+      if (usageRes.ok) {
+        const usage = await usageRes.json();
+        if (usage.limit !== -1 && usage.used >= usage.limit) {
+          setUsageLimitHit(true);
+          updateItem(item.id, {
+            status: 'error',
+            error: `Monthly limit reached (${usage.used}/${usage.limit}). Upgrade your plan to continue.`,
+          });
+          return;
+        }
+      }
+    } catch { /* proceed — don't block on usage check failure */ }
+
     updateItem(item.id, { status: 'saving' });
 
     const d = item.editData;

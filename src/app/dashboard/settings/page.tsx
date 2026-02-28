@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useUsage } from '@/hooks/useUsage';
 import type { SubscriptionTier } from '@/lib/payments/stripe';
 import {
   Loader2,
@@ -17,6 +18,7 @@ import {
   ExternalLink,
   Crown,
   Trash2,
+  BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +26,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+
+import { Progress } from '@/components/ui/progress';
 
 const PLANS: {
   tier: SubscriptionTier;
@@ -75,6 +79,16 @@ export default function SettingsPage() {
     refresh: refreshSubscription,
   } = useSubscription();
 
+  const {
+    used: receiptsUsed,
+    limit: receiptsLimit,
+    percentage: usagePercent,
+    isAtLimit,
+    isNearLimit,
+    loading: usageLoading,
+    refresh: refreshUsage,
+  } = useUsage();
+
   const [profileLoading, setProfileLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState<SubscriptionTier | null>(null);
@@ -101,15 +115,14 @@ export default function SettingsPage() {
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('company_name, email')
-      .eq('id', user.id)
-      .single();
-    if (data) {
-      setCompanyName(data.company_name || '');
-      setEmail(data.email || '');
-    }
+    try {
+      const res = await fetch('/api/profile');
+      if (res.ok) {
+        const data = await res.json();
+        setCompanyName(data.company_name || '');
+        setEmail(data.email || '');
+      }
+    } catch { /* ignore */ }
     setProfileLoading(false);
   }, [user]);
 
@@ -123,14 +136,20 @@ export default function SettingsPage() {
     setSaving(true);
     setError('');
     setSuccess('');
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ company_name: companyName.trim() })
-      .eq('id', user.id);
-    if (updateError) {
-      setError(updateError.message);
-    } else {
-      setSuccess('Company information updated.');
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_name: companyName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to update company name');
+      } else {
+        setSuccess('Company information updated.');
+      }
+    } catch {
+      setError('Failed to update company name');
     }
     setSaving(false);
     setTimeout(() => setSuccess(''), 3000);
@@ -456,6 +475,83 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Usage This Month */}
+      {isActive && (
+        <Card className="border-gray-100">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+              Usage This Month
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {usageLoading ? (
+              <div className="space-y-3">
+                <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+                <div className="h-2 w-full bg-gray-100 rounded animate-pulse" />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Receipts uploaded</span>
+                    <span className="font-medium text-gray-900">
+                      {receiptsUsed}{receiptsLimit === -1 ? '' : ` / ${receiptsLimit}`}
+                    </span>
+                  </div>
+                  {receiptsLimit !== -1 ? (
+                    <Progress
+                      value={Math.min(usagePercent, 100)}
+                      className={`h-2.5 ${
+                        isAtLimit
+                          ? '[&>div]:bg-red-500'
+                          : isNearLimit
+                            ? '[&>div]:bg-amber-500'
+                            : '[&>div]:bg-blue-600'
+                      }`}
+                    />
+                  ) : (
+                    <p className="text-xs text-gray-500">Unlimited receipts on the Enterprise plan.</p>
+                  )}
+                </div>
+
+                {isAtLimit && (
+                  <Alert className="border-red-200 bg-red-50">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className="text-red-800">
+                      You&apos;ve reached your monthly receipt limit. Upgrade your plan to continue uploading.
+                      <Button
+                        variant="link"
+                        className="text-red-800 underline h-auto p-0 ml-1"
+                        onClick={handleBillingPortal}
+                        disabled={portalLoading}
+                      >
+                        Upgrade now →
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {isNearLimit && (
+                  <Alert className="border-amber-200 bg-amber-50">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800">
+                      You&apos;re at {usagePercent}% of your monthly limit. Consider upgrading to avoid disruption.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {receiptsLimit !== -1 && !isAtLimit && !isNearLimit && (
+                  <p className="text-xs text-gray-500">
+                    {receiptsLimit - receiptsUsed} receipts remaining this billing period.
+                  </p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Danger Zone */}
       <Card className="border-red-200">

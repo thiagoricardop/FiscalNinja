@@ -37,3 +37,25 @@ next-env.d.ts
 
 # supabase
 /.supabase
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+Thumbs.db
+
+# Jupyter / notebook checkpoints
+.ipynb_checkpoints/
+*.ipynb
+
+# Turbo / cache
+.turbo/
+
+# Sentry
+.sentryclirc
+
+# Dev test utilities
+src/lib/ocr/test-ocr.ts

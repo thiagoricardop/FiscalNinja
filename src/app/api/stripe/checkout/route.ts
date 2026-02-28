@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentUser, effectiveOwnerId } from '@/lib/auth/rbac';
 import { stripe, PRICE_MAP, getOrCreateStripeCustomer } from '@/lib/payments/stripe';
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     const ownerId = effectiveOwnerId(user);
     const supabase = await createSupabaseServerClient();
 
-    // Get user email
+    // Get user email (needs auth-aware client)
     const { data: authData } = await supabase.auth.getUser();
     const email = authData.user?.email;
     if (!email) {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if already subscribed (must have a stripe_customer_id AND active status)
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('subscription_status, stripe_customer_id')
       .eq('id', ownerId)

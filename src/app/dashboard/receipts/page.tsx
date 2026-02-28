@@ -423,6 +423,21 @@ export default function ReceiptsPage() {
     setError('');
     setSaving(true);
 
+    // ── Usage limit check ─────────────────────────
+    try {
+      const usageRes = await fetch('/api/stripe/usage');
+      if (usageRes.ok) {
+        const usage = await usageRes.json();
+        if (usage.limit !== -1 && usage.used >= usage.limit) {
+          setError(
+            `You've reached your monthly receipt limit (${usage.used}/${usage.limit}). Upgrade your plan to add more receipts.`,
+          );
+          setSaving(false);
+          return;
+        }
+      }
+    } catch { /* proceed */ }
+
     const { error: insertError } = await supabase.from('receipts').insert({
       user_id: user.id,
       vendor: form.vendor.trim(),

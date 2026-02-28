@@ -7,6 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_URL),
   title: "FiscalNinja - Smart Receipt Management for Truckers",
   description: "OCR-powered receipt scanning and expense tracking for trucking companies",
   icons: {
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
     apple: '/logo.svg',
   },
   openGraph: {
-    images: [`${APP_URL}/og-image.png`],
+    images: ['/og-image.png'],
   },
 };
 
