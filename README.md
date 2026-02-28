@@ -1,84 +1,63 @@
 # FiscalNinja
 
-Smart Receipt Management for Trucking Companies - OCR-powered receipt scanning and expense tracking.
+[![CI](https://github.com/thiagoricardop/FiscalNinja/actions/workflows/ci.yml/badge.svg)](https://github.com/thiagoricardop/FiscalNinja/actions/workflows/ci.yml)
 
-## Getting Started
+**Smart Receipt Management for Trucking Companies**
 
-### 1. Install Dependencies
+FiscalNinja is a SaaS platform built for owner-operators and fleet managers who need to track fuel receipts, tolls, maintenance costs, and other on-the-road expenses without the shoebox-of-receipts chaos. Snap a photo of any receipt, and the AI-powered OCR extracts vendor, amount, date, and category in seconds — turning hours of manual data entry into a one-tap workflow.
 
-```bash
-npm install
-```
+## Why FiscalNinja?
 
-### 2. Set Up Environment Variables
+- **AI-Powered OCR** — Receipts are processed by Google Gemini to extract structured data automatically.
+- **Fleet-Ready** — Role-based access (Owner → Manager → Driver) lets you scale from a single truck to 100+.
+- **Export Anything** — Generate Excel, CSV, or PDF reports filtered by date, truck, driver, or category.
+- **Subscription Plans** — Solo, Fleet, and Enterprise tiers with 14-day free trials via Stripe.
+- **Secure by Default** — Row-level security, CSRF protection, rate limiting, and encrypted storage.
 
-Copy `.env.example` to `.env.local` and fill in your credentials:
+## Tech Stack
 
-```bash
-cp .env.example .env.local
-```
-
-### 3. Install shadcn/ui Components
-
-```bash
-npx shadcn-ui@latest add button
-npx shadcn-ui@latest add card
-npx shadcn-ui@latest add input
-npx shadcn-ui@latest add table
-npx shadcn-ui@latest add dialog
-npx shadcn-ui@latest add label
-npx shadcn-ui@latest add select
-npx shadcn-ui@latest add toast
-```
-
-### 4. Run Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to see your app.
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 14 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS + shadcn/ui |
+| Database | Supabase (PostgreSQL + RLS) |
+| Auth | Supabase Auth (email + magic link) |
+| OCR | Google Gemini AI |
+| Payments | Stripe (Checkout, Billing Portal, Webhooks) |
+| State | Zustand |
+| Charts | Recharts |
+| Icons | Lucide React |
+| PDF Export | @react-pdf/renderer |
 
 ## Project Structure
 
 ```
-/src
-  /app                 # Next.js 14 App Router
-    /api              # API routes
-    /dashboard        # Dashboard pages
-    /auth             # Authentication pages
-    layout.tsx        # Root layout
-    page.tsx          # Home page
-  /components
-    /ui               # shadcn/ui components
-    /receipts         # Receipt-specific components
-    /layout           # Layout components (Header, Footer)
-  /lib
-    /utils            # Utility functions
-    /db               # Database clients (Supabase)
-    /ocr              # OCR integration (Google Vision)
-  /types              # TypeScript type definitions
-  /hooks              # Custom React hooks (Zustand store)
+src/
+├── app/               # Next.js App Router
+│   ├── api/           # API routes (Stripe, webhooks, account, uploads)
+│   ├── auth/          # Login, signup, callback, verify-email
+│   ├── dashboard/     # Dashboard pages (upload, receipts, reports, settings)
+│   └── onboarding/    # Guided onboarding flow
+├── components/
+│   ├── ui/            # shadcn/ui primitives
+│   ├── auth/          # Auth-related components
+│   ├── brand/         # Logo, branding
+│   ├── dashboard/     # PaywallGuard, dashboard widgets
+│   ├── export/        # PDF/Excel export components
+│   └── receipts/      # Receipt cards, filters, review UI
+├── hooks/             # useUser, useSubscription, usePermissions, useStore
+├── lib/
+│   ├── auth/          # RBAC, permissions, validation
+│   ├── payments/      # Stripe singleton, price maps, customer helpers
+│   ├── supabase/      # Server + client + admin clients
+│   ├── ocr/           # Gemini OCR integration
+│   ├── export/        # Excel/CSV/PDF generators
+│   ├── security/      # CSRF, rate limiting
+│   └── storage/       # Supabase storage helpers
+└── types/             # TypeScript interfaces
 ```
 
-## Tech Stack
+## License
 
-- **Framework:** Next.js 14 (App Router)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS + shadcn/ui
-- **Database:** Supabase (PostgreSQL)
-- **OCR:** Google Cloud Vision API
-- **File Upload:** react-dropzone
-- **State Management:** Zustand
-- **Date Handling:** date-fns
-- **Icons:** lucide-react
-
-## Next Steps
-
-1. Set up Supabase database (see implementation guide)
-2. Configure Google Cloud Vision API
-3. Implement file upload functionality
-4. Build OCR processing pipeline
-5. Create receipt review interface
-
-See `implementation-guide.ipynb` for detailed step-by-step instructions.
+Proprietary — All rights reserved.
