@@ -6,10 +6,11 @@ export type Database = {
           id: string;
           company_name: string;
           email: string;
+          full_name: string | null;
           role: 'owner' | 'manager' | 'driver';
           parent_user_id: string | null;
           subscription_tier: 'solo' | 'fleet' | 'enterprise';
-          subscription_status: 'active' | 'cancelled' | 'past_due';
+          subscription_status: 'active' | 'inactive' | 'cancelled' | 'past_due';
           stripe_customer_id: string | null;
           onboarding_completed: boolean;
           created_at: string;
@@ -19,10 +20,11 @@ export type Database = {
           id: string;
           company_name: string;
           email: string;
+          full_name?: string | null;
           role?: 'owner' | 'manager' | 'driver';
           parent_user_id?: string | null;
           subscription_tier?: 'solo' | 'fleet' | 'enterprise';
-          subscription_status?: 'active' | 'cancelled' | 'past_due';
+          subscription_status?: 'active' | 'inactive' | 'cancelled' | 'past_due';
           stripe_customer_id?: string | null;
           onboarding_completed?: boolean;
           created_at?: string;
@@ -32,10 +34,11 @@ export type Database = {
           id?: string;
           company_name?: string;
           email?: string;
+          full_name?: string | null;
           role?: 'owner' | 'manager' | 'driver';
           parent_user_id?: string | null;
           subscription_tier?: 'solo' | 'fleet' | 'enterprise';
-          subscription_status?: 'active' | 'cancelled' | 'past_due';
+          subscription_status?: 'active' | 'inactive' | 'cancelled' | 'past_due';
           stripe_customer_id?: string | null;
           onboarding_completed?: boolean;
           created_at?: string;
@@ -50,6 +53,7 @@ export type Database = {
           user_id: string | null;
           role: 'owner' | 'manager' | 'driver';
           invited_email: string;
+          invite_token: string | null;
           invited_at: string;
           accepted_at: string | null;
           active: boolean;
@@ -63,6 +67,7 @@ export type Database = {
           user_id?: string | null;
           role?: 'owner' | 'manager' | 'driver';
           invited_email: string;
+          invite_token?: string | null;
           invited_at?: string;
           accepted_at?: string | null;
           active?: boolean;
@@ -76,6 +81,7 @@ export type Database = {
           user_id?: string | null;
           role?: 'owner' | 'manager' | 'driver';
           invited_email?: string;
+          invite_token?: string | null;
           invited_at?: string;
           accepted_at?: string | null;
           active?: boolean;

@@ -49,7 +49,7 @@ export interface Profile {
   role: UserRole;
   parent_user_id: string | null;
   subscription_tier: 'solo' | 'fleet' | 'enterprise';
-  subscription_status: 'active' | 'cancelled' | 'past_due';
+  subscription_status: 'active' | 'inactive' | 'cancelled' | 'past_due';
   stripe_customer_id?: string | null;
   onboarding_completed: boolean;
   created_at: string;

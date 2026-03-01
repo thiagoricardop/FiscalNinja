@@ -142,7 +142,7 @@ const HOW_STEPS: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: FileSpreadsheet,
     title: 'Export',
-    desc: 'Download organized Excel reports, generate PDF summaries, or sync directly to QuickBooks — in one click.',
+    desc: 'Download organized Excel reports, generate PDF summaries, or export CSV files — in one click.',
   },
 ];
 
@@ -150,7 +150,7 @@ const BENEFITS: { icon: LucideIcon; title: string; desc: string }[] = [
   { icon: Clock, title: 'Save 20+ hours/month', desc: 'Eliminate manual data entry completely' },
   { icon: DollarSign, title: 'Never lose a deduction', desc: 'Every receipt captured and organized' },
   { icon: Heart, title: 'Happier drivers', desc: 'Faster reimbursements = lower turnover' },
-  { icon: Zap, title: 'QuickBooks integration', desc: 'Seamless automatic expense sync' },
+  { icon: Zap, title: 'Instant exports', desc: 'Excel, PDF, and CSV in one click' },
   { icon: TrendingUp, title: 'Real-time reports', desc: 'Know your expenses instantly' },
   { icon: Smartphone, title: 'Mobile-first design', desc: 'Works on any smartphone' },
 ];
@@ -183,7 +183,7 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   { icon: Camera, title: 'Mobile Upload', desc: 'Camera-friendly interface optimized for drivers on the road' },
   { icon: Bot, title: 'AI OCR Engine', desc: '95%+ accuracy on receipts — even faded, crumpled, or hand-written' },
   { icon: FileSpreadsheet, title: 'Excel Export', desc: 'Professionally formatted expense reports ready for your accountant' },
-  { icon: Zap, title: 'QuickBooks Sync', desc: 'Automatic expense creation in QuickBooks Online' },
+  { icon: Zap, title: 'Fast Exports', desc: 'Excel, PDF, and CSV reports ready for your accountant' },
   { icon: Users, title: 'Multi-User Access', desc: 'Drivers, managers, and owners — each with the right permissions' },
   { icon: BarChart3, title: 'Visual Reports', desc: 'Interactive charts to visualize spending trends by category and driver' },
   { icon: Shield, title: 'Data Protection', desc: 'AES-256 encryption, row-level security, and GDPR compliance' },
@@ -197,7 +197,8 @@ const PLANS = [
     highlight: false,
     features: [
       'Up to 5 trucks',
-      'Unlimited receipt scans',
+      'Up to 5 drivers',
+      '200 receipts/month',
       'AI data extraction',
       'Excel & CSV export',
       'Spending dashboard',
@@ -212,8 +213,10 @@ const PLANS = [
     features: [
       'Everything in Solo',
       'Up to 25 trucks',
+      'Up to 25 drivers',
+      '1,000 receipts/month',
       'Multi-user access',
-      'QuickBooks integration',
+      'Excel, PDF & CSV export',
       'Advanced reports & PDF',
       'Priority support',
     ],
@@ -226,6 +229,8 @@ const PLANS = [
     features: [
       'Everything in Fleet',
       'Up to 100 trucks',
+      'Up to 100 drivers',
+      'Unlimited receipts',
       'Custom integrations',
       'Dedicated account manager',
       'SSO authentication',
@@ -244,8 +249,8 @@ const FAQS = [
     a: 'Yes! FiscalNinja works on any smartphone with a camera. No special hardware or app download required — just open the browser, snap a photo, and you\'re done.',
   },
   {
-    q: 'Does it work with QuickBooks?',
-    a: 'Yes, we offer automatic sync to QuickBooks Online. Expenses are categorized and pushed directly into your books — no double entry.',
+    q: 'What export formats do you support?',
+    a: 'We support Excel (.xlsx), CSV, and professionally formatted PDF reports. All exports can be filtered by date range, truck, driver, and category — ready to hand to your accountant.',
   },
   {
     q: 'What if I have more than 100 trucks?',
@@ -253,7 +258,27 @@ const FAQS = [
   },
   {
     q: 'Is there a free trial?',
-    a: 'Yes, every plan comes with a 14-day free trial. No credit card required to start. You can upgrade, downgrade, or cancel anytime.',
+    a: 'Yes, every plan comes with a 14-day free trial. You can upgrade, downgrade, or cancel anytime.',
+  },
+  {
+    q: 'How does team management work?',
+    a: 'Owners can invite managers and drivers to their account. Each role has specific permissions — drivers can upload receipts, managers can view reports, and owners have full control.',
+  },
+  {
+    q: 'Is my data secure?',
+    a: 'Absolutely. We use AES-256 encryption, TLS 1.3 for data in transit, and Supabase row-level security to ensure each user can only access their own data. We never sell your data.',
+  },
+  {
+    q: 'Can I track expenses by truck or driver?',
+    a: 'Yes. Every receipt can be assigned to a specific truck and driver. Reports and dashboards let you break down spending by truck, driver, category, and date range.',
+  },
+  {
+    q: 'What types of receipts can I upload?',
+    a: 'Any receipt image — fuel, maintenance, tolls, food, lodging, and more. Our AI handles gas station receipts, repair shop invoices, hotel bills, and even handwritten receipts.',
+  },
+  {
+    q: 'Can I cancel anytime?',
+    a: 'Yes. There are no long-term contracts. You can upgrade, downgrade, or cancel your subscription at any time from your account settings.',
   },
 ];
 
@@ -373,7 +398,7 @@ export default function Home() {
                 </Button>
               </div>
               <p className="mt-5 text-xs text-gray-500">
-                14-day free trial &middot; No credit card required &middot; Cancel anytime
+                14-day free trial &middot; Cancel anytime
               </p>
             </FadeIn>
 
@@ -603,7 +628,7 @@ export default function Home() {
                 Simple Pricing for Every Fleet Size
               </h2>
               <p className="mt-4 text-gray-600">
-                Start with a 14-day free trial. No credit card required.
+                Start with a 14-day free trial.
                 Upgrade, downgrade, or cancel anytime.
               </p>
             </div>
@@ -740,7 +765,7 @@ export default function Home() {
                 </Button>
               </div>
               <p className="mt-6 text-sm text-blue-200">
-                14-day free trial &middot; No credit card required &middot; Cancel anytime
+                14-day free trial &middot; Cancel anytime
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-blue-100">
                 <span className="flex items-center gap-1.5">

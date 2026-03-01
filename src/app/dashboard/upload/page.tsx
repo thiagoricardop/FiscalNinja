@@ -1,16 +1,40 @@
 'use client';
 
-import ReceiptUpload from '@/components/receipts/ReceiptUpload';
-import { PaywallGuard } from '@/components/dashboard/PaywallGuard';
+import dynamic from 'next/dynamic';
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionBanner } from '@/components/dashboard/SubscriptionGate';
 import { useRouter } from 'next/navigation';
-import { Upload } from 'lucide-react';
+import { Upload, Loader2 } from 'lucide-react';
+
+const ReceiptUpload = dynamic(
+  () => import('@/components/receipts/ReceiptUpload'),
+  {
+    loading: () => (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+      </div>
+    ),
+    ssr: false,
+  },
+);
 
 export default function UploadPage() {
   const router = useRouter();
+  const { hasSubscription, loading } = useSubscription();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
-    <PaywallGuard>
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Subscription banner when no plan */}
+      {!loading && !hasSubscription && <SubscriptionBanner />}
+
       {/* Header */}
       <div>
         <div className="flex items-center gap-3">
@@ -26,12 +50,14 @@ export default function UploadPage() {
         </div>
       </div>
 
-      {/* Upload component */}
-      <ReceiptUpload
-        onSuccess={() => {
-          // Receipts page will see the new data on next visit
-        }}
-      />
+      {/* Upload component — disabled overlay when no subscription */}
+      <div className={!hasSubscription ? 'pointer-events-none opacity-50' : ''}>
+        <ReceiptUpload
+          onSuccess={() => {
+            // Receipts page will see the new data on next visit
+          }}
+        />
+      </div>
 
       {/* Tips */}
       <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-5 space-y-3">
@@ -56,6 +82,5 @@ export default function UploadPage() {
         </ul>
       </div>
     </div>
-    </PaywallGuard>
   );
 }

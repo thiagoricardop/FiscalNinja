@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionBanner } from '@/components/dashboard/SubscriptionGate';
 import {
   DollarSign,
   Receipt,
@@ -29,7 +31,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { PaywallGuard } from '@/components/dashboard/PaywallGuard';
 import {
   Select,
   SelectContent,
@@ -296,6 +297,7 @@ function PieTooltip({ active, payload }: any) {
 
 export default function ReportsPage() {
   const { user } = useUser();
+  const { hasSubscription, loading: subLoading } = useSubscription();
 
   // ── Data State ─────────────────────────────────
   const [receipts, setReceipts] = useState<ReceiptRow[]>([]);
@@ -774,8 +776,10 @@ export default function ReportsPage() {
   // ═══════════════════════════════════════════════
 
   return (
-    <PaywallGuard>
     <div className="space-y-6">
+      {/* Subscription banner when no plan */}
+      {!subLoading && !hasSubscription && <SubscriptionBanner />}
+
       {/* ═══════ DATE RANGE SELECTOR BAR ═══════ */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-2 flex-1">
@@ -1171,6 +1175,7 @@ export default function ReportsPage() {
                     size="sm"
                     className="gap-1.5 text-xs"
                     onClick={() => setExportOpen(true)}
+                    disabled={!hasSubscription}
                   >
                     <Download className="h-3 w-3" />
                     Export for Tax Filing
@@ -1362,6 +1367,5 @@ export default function ReportsPage() {
         receipts={exportReceipts}
       />
     </div>
-    </PaywallGuard>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
@@ -15,6 +15,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <AuthLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+        </div>
+      </AuthLayout>
+    }>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectedFrom = searchParams.get('redirectedFrom');
@@ -74,7 +88,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         {/* Mobile logo */}
         <div className="lg:hidden text-center mb-2">
           <h2 className="text-xl font-bold text-blue-600">FiscalNinja</h2>
@@ -124,13 +138,13 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-1">
               <Label htmlFor="password" className="text-sm font-medium">
                 Password
               </Label>
               <Link
                 href="/auth/forgot-password"
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
               >
                 Forgot password?
               </Link>

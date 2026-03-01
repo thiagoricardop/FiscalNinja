@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { useSubscription } from '@/hooks/useSubscription';
+import { PermissionsProvider, usePermissions } from '@/hooks/usePermissions';
+import type { Permission } from '@/lib/auth/permissions';
 import LogoutButton from '@/components/auth/LogoutButton';
 import Logo from '@/components/brand/Logo';
 import {
@@ -20,17 +22,30 @@ import {
   Upload,
   BarChart3,
   CreditCard,
+  Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { LucideIcon } from 'lucide-react';
 
-const NAV_ITEMS = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  /** Only show if user has this permission (undefined = always show) */
+  requires?: Permission;
+  /** Use exact pathname match instead of startsWith (prevents child routes from highlighting parent) */
+  exact?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/dashboard/upload', label: 'Upload', icon: Upload },
+  { href: '/dashboard/upload', label: 'Upload', icon: Upload, requires: 'receipts.upload' },
   { href: '/dashboard/receipts', label: 'Receipts', icon: Receipt },
-  { href: '/dashboard/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/dashboard/trucks', label: 'Trucks', icon: Truck },
-  { href: '/dashboard/drivers', label: 'Drivers', icon: Users },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard/reports', label: 'Reports', icon: BarChart3, requires: 'reports.view' },
+  { href: '/dashboard/trucks', label: 'Trucks', icon: Truck, requires: 'trucks.manage' },
+  { href: '/dashboard/drivers', label: 'Drivers', icon: Users, requires: 'drivers.manage' },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings, requires: 'settings.view', exact: true },
+  { href: '/dashboard/settings/team', label: 'Team', icon: Shield, requires: 'team.manage' },
 ];
 
 export default function DashboardLayout({
@@ -38,9 +53,22 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <PermissionsProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </PermissionsProvider>
+  );
+}
+
+function DashboardLayoutInner({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const { user } = useUser();
   const { isActive, isTrialing, cancelAtPeriodEnd, loading: subLoading } = useSubscription();
+  const { can } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [companyName, setCompanyName] = useState(
     user?.user_metadata?.company_name || 'My Company'
@@ -56,6 +84,12 @@ export default function DashboardLayout({
       })
       .catch(() => {});
   }, [user]);
+
+  // Filter nav items by role permissions
+  const filteredNav = useMemo(
+    () => NAV_ITEMS.filter((item) => !item.requires || can(item.requires)),
+    [can],
+  );
 
   const initials = companyName
     .split(' ')
@@ -75,10 +109,10 @@ export default function DashboardLayout({
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {filteredNav.map((item) => {
             const isActive =
-              item.href === '/dashboard'
-                ? pathname === '/dashboard'
+              item.href === '/dashboard' || item.exact
+                ? pathname === item.href
                 : pathname.startsWith(item.href);
             return (
               <Link
@@ -136,10 +170,10 @@ export default function DashboardLayout({
             </div>
 
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-              {NAV_ITEMS.map((item) => {
+              {filteredNav.map((item) => {
                 const isActive =
-                  item.href === '/dashboard'
-                    ? pathname === '/dashboard'
+                  item.href === '/dashboard' || item.exact
+                    ? pathname === item.href
                     : pathname.startsWith(item.href);
                 return (
                   <Link
@@ -192,9 +226,9 @@ export default function DashboardLayout({
 
           <div className="hidden lg:block">
             <h2 className="text-sm font-semibold text-gray-900">
-              {NAV_ITEMS.find((n) =>
-                n.href === '/dashboard'
-                  ? pathname === '/dashboard'
+              {filteredNav.find((n) =>
+                n.href === '/dashboard' || n.exact
+                  ? pathname === n.href
                   : pathname.startsWith(n.href)
               )?.label || 'Dashboard'}
             </h2>

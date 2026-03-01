@@ -7,7 +7,8 @@ import { supabase } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useUsage } from '@/hooks/useUsage';
-import type { SubscriptionTier } from '@/lib/payments/stripe';
+import { usePermissions } from '@/hooks/usePermissions';
+import type { SubscriptionTier } from '@/lib/payments/limits';
 import {
   Loader2,
   Building2,
@@ -42,7 +43,7 @@ const PLANS: {
     name: 'Solo',
     price: 29,
     desc: '1–5 trucks',
-    features: ['Up to 5 trucks', 'Unlimited receipt scans', 'AI data extraction', 'Excel & CSV export', 'Email support'],
+    features: ['Up to 5 trucks', 'Up to 5 drivers', '200 receipts/month', 'AI data extraction', 'Excel & CSV export', 'Email support'],
   },
   {
     tier: 'fleet',
@@ -50,14 +51,14 @@ const PLANS: {
     price: 79,
     desc: '6–25 trucks',
     popular: true,
-    features: ['Up to 25 trucks', 'Multi-user access', 'Advanced reports & PDF', 'Priority support'],
+    features: ['Up to 25 trucks', 'Up to 25 drivers', '1,000 receipts/month', 'Multi-user access', 'Advanced reports & PDF', 'Priority support'],
   },
   {
     tier: 'enterprise',
     name: 'Enterprise',
     price: 149,
     desc: '26–100 trucks',
-    features: ['Up to 100 trucks', 'Custom integrations', 'Dedicated account manager', 'Phone support & SLA'],
+    features: ['Up to 100 trucks', 'Up to 100 drivers', 'Unlimited receipts', 'Custom integrations', 'Dedicated account manager', 'Phone support & SLA'],
   },
 ];
 
@@ -65,6 +66,7 @@ export default function SettingsPage() {
   const { user } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isOwner } = usePermissions();
   const {
     tier,
     status,
@@ -469,7 +471,7 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className="text-xs text-gray-500 text-center">
-                14-day free trial on all plans · No credit card required · Cancel anytime
+                14-day free trial on all plans · Cancel anytime
               </p>
             </div>
           )}
@@ -562,10 +564,17 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Permanently delete your account and all associated data — trucks, drivers, receipts,
-            reports, and team members. <strong>This action is irreversible.</strong>
-          </p>
+          {isOwner ? (
+            <p className="text-sm text-gray-600">
+              Permanently delete your account and all associated data — trucks, drivers, receipts,
+              reports, and team members. <strong>This action is irreversible.</strong>
+            </p>
+          ) : (
+            <p className="text-sm text-gray-600">
+              Remove your account from this team and delete your login.
+              The team&apos;s data (trucks, receipts, reports) will <strong>not</strong> be affected.
+            </p>
+          )}
 
           {!deleteConfirmOpen ? (
             <Button
@@ -581,7 +590,9 @@ export default function SettingsPage() {
               <Alert className="border-red-300 bg-red-100">
                 <AlertTriangle className="h-4 w-4 text-red-600" />
                 <AlertDescription className="text-red-800 font-medium">
-                  All your data will be permanently deleted from the database. This cannot be undone.
+                  {isOwner
+                    ? 'All your data will be permanently deleted from the database. This cannot be undone.'
+                    : 'Your login will be deleted and you will be removed from the team. Team data is not affected.'}
                 </AlertDescription>
               </Alert>
               <p className="text-sm text-gray-700">

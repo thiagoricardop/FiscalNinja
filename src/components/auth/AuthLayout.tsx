@@ -6,8 +6,8 @@ const HIGHLIGHTS = [
   'AI OCR with 95%+ accuracy on receipts',
   'AES-256 encryption & row-level security',
   'Track spending by truck, driver, and category',
-  'Excel, PDF, and QuickBooks export in one click',
-  '14-day free trial on every plan — no card required',
+  'Excel, PDF, and CSV export in one click',
+  '14-day free trial on every plan',
 ];
 
 interface AuthLayoutProps {
@@ -18,15 +18,15 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel — Brand / Value Proposition */}
-      <div className="hidden lg:flex lg:w-[480px] xl:w-[560px] flex-col justify-between bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 text-white p-10 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[45%] xl:w-[42%] 2xl:w-[40%] max-w-[560px] flex-col bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 text-white p-10 relative overflow-y-auto flex-shrink-0">
         {/* Background pattern */}
-        <div className="absolute inset-0 opacity-10">
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
           <div className="absolute top-20 -left-10 w-64 h-64 rounded-full bg-white/20 blur-3xl" />
           <div className="absolute bottom-20 right-10 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
           <div className="absolute top-1/2 left-1/3 w-48 h-48 rounded-full bg-indigo-400/20 blur-2xl" />
         </div>
 
-        <div className="relative z-10">
+        <div className="relative z-10 flex-1">
           {/* Logo */}
           <Logo size="lg" showText className="mb-16" />
 
@@ -63,7 +63,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
           </div>
 
           {/* Feature pills */}
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 xl:gap-3">
             {[
               { icon: Clock, text: 'Save 20+ Hrs/Mo' },
               { icon: ShieldCheck, text: 'Bank-Grade Security' },
@@ -82,7 +82,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
         </div>
 
         {/* What you get */}
-        <div className="relative z-10">
+        <div className="relative z-10 mt-8 flex-shrink-0">
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <p className="text-xs font-semibold uppercase tracking-wider text-blue-200 mb-4">
               What&apos;s included
@@ -100,8 +100,8 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
       </div>
 
       {/* Right Panel — Form Content */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-slate-50/50">
-        <div className="w-full max-w-[440px]">{children}</div>
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 sm:py-12 bg-slate-50/50 min-w-0">
+        <div className="w-full max-w-[440px] mx-auto">{children}</div>
       </div>
     </div>
   );

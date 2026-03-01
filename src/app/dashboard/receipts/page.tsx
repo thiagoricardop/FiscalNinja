@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { deleteReceipt as deleteStorageFile } from '@/lib/storage/upload';
 import { useUser } from '@/hooks/useUser';
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionBanner } from '@/components/dashboard/SubscriptionGate';
 import {
   Plus,
   Search,
@@ -28,7 +30,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PaywallGuard } from '@/components/dashboard/PaywallGuard';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
@@ -110,6 +111,7 @@ function dateRangeStart(range: DateRange): Date | null {
 
 export default function ReceiptsPage() {
   const { user } = useUser();
+  const { hasSubscription, loading: subLoading } = useSubscription();
 
   // Data
   const [receipts, setReceipts] = useState<ReceiptRow[]>([]);
@@ -505,8 +507,10 @@ export default function ReceiptsPage() {
   // ─── Render ────────────────────────────────────
 
   return (
-    <PaywallGuard>
     <div className="space-y-6">
+      {/* Subscription banner when no plan */}
+      {!subLoading && !hasSubscription && <SubscriptionBanner />}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -516,13 +520,13 @@ export default function ReceiptsPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" className="gap-2" onClick={() => setExportOpen(true)}>
+          <Button variant="outline" className="gap-2" onClick={() => setExportOpen(true)} disabled={!hasSubscription}>
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Export</span>
           </Button>
           <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 gap-2">
+              <Button className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={!hasSubscription}>
                 <Upload className="h-4 w-4" />
                 AI Upload
               </Button>
@@ -1377,6 +1381,5 @@ export default function ReceiptsPage() {
         }))}
       />
     </div>
-    </PaywallGuard>
   );
 }

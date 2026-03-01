@@ -250,7 +250,8 @@ export async function middleware(req: NextRequest) {
   const isAuthPage = pathname.startsWith('/auth');
   const isDashboard = pathname.startsWith('/dashboard');
   const isOnboarding = pathname.startsWith('/onboarding');
-  const isProtected = isDashboard || isOnboarding;
+  const isDriverPortal = pathname.startsWith('/driver');
+  const isProtected = isDashboard || isOnboarding || isDriverPortal;
 
   // Redirect to login if accessing protected route without session
   if (isProtected && !user) {
@@ -259,9 +260,16 @@ export async function middleware(req: NextRequest) {
     return secureRedirect(loginUrl, req);
   }
 
-  // Redirect to dashboard if accessing auth pages with active session
+  // Redirect to dashboard/driver if accessing auth pages with active session
   if (isAuthPage && user && !pathname.includes('/auth/callback')) {
-    return secureRedirect(new URL('/dashboard', req.url), req);
+    // Check role to decide where to redirect logged-in users
+    const { data: authProfile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    const dest = authProfile?.role === 'driver' ? '/driver' : '/dashboard';
+    return secureRedirect(new URL(dest, req.url), req);
   }
 
   // If authenticated and visiting dashboard, ensure onboarding is complete
@@ -280,17 +288,15 @@ export async function middleware(req: NextRequest) {
     // ─── 6. Role-based route restrictions ──────────
     const role = (profile?.role as string) ?? 'owner';
 
-    // Drivers cannot access settings or team management pages
+    // Drivers should use the /driver portal, not /dashboard
     if (role === 'driver') {
-      if (pathname.startsWith('/dashboard/settings') ||
-          pathname.startsWith('/dashboard/team')) {
-        return secureRedirect(new URL('/dashboard', req.url), req);
-      }
+      return secureRedirect(new URL('/driver', req.url), req);
     }
 
-    // Only owners can access subscription / billing pages
+    // Only owners can access team management, subscription, billing
     if (role !== 'owner') {
-      if (pathname.startsWith('/dashboard/billing') ||
+      if (pathname.startsWith('/dashboard/settings/team') ||
+          pathname.startsWith('/dashboard/billing') ||
           pathname.startsWith('/dashboard/subscription')) {
         return secureRedirect(new URL('/dashboard', req.url), req);
       }
@@ -302,6 +308,27 @@ export async function middleware(req: NextRequest) {
     if (profile?.parent_user_id) {
       res.headers.set('x-parent-user-id', profile.parent_user_id as string);
     }
+  }
+
+  // ─── 7. Driver portal route guard ─────────────
+  if (isDriverPortal && user) {
+    const { data: driverProfile } = await supabase
+      .from('profiles')
+      .select('onboarding_completed, role')
+      .eq('id', user.id)
+      .single();
+
+    if (driverProfile && !driverProfile.onboarding_completed) {
+      return secureRedirect(new URL('/onboarding', req.url), req);
+    }
+
+    // Only drivers can access /driver — redirect others to /dashboard
+    if (driverProfile?.role !== 'driver') {
+      return secureRedirect(new URL('/dashboard', req.url), req);
+    }
+
+    res.headers.set('x-user-role', driverProfile.role);
+    res.headers.set('x-user-id', user.id);
   }
 
   return res;

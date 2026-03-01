@@ -3,12 +3,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionBanner } from '@/components/dashboard/SubscriptionGate';
+import { TIER_DRIVER_LIMIT } from '@/lib/payments/limits';
 import {
   Plus,
   Users,
   Loader2,
   Trash2,
   Pencil,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +48,7 @@ type DriverRow = {
 
 export default function DriversPage() {
   const { user } = useUser();
+  const { tier, hasSubscription, loading: subLoading } = useSubscription();
   const [drivers, setDrivers] = useState<DriverRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -113,6 +118,13 @@ export default function DriversPage() {
         .eq('id', editing.id);
       err = e;
     } else {
+      // Enforce driver limit per plan
+      const driverLimit = tier ? TIER_DRIVER_LIMIT[tier] : 0;
+      if (driverLimit > 0 && drivers.length >= driverLimit) {
+        setError(`Your ${tier} plan allows up to ${driverLimit} drivers. Upgrade to add more.`);
+        setSaving(false);
+        return;
+      }
       const { error: e } = await supabase.from('drivers').insert(payload);
       err = e;
     }
@@ -157,15 +169,25 @@ export default function DriversPage() {
   }
 
   const activeDrivers = drivers.filter((d) => d.active).length;
+  const driverLimit = tier ? TIER_DRIVER_LIMIT[tier] : 0;
+  const isAtDriverLimit = driverLimit > 0 && drivers.length >= driverLimit;
 
   return (
     <div className="space-y-6">
+      {/* Subscription banner when no plan */}
+      {!subLoading && !hasSubscription && <SubscriptionBanner />}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Drivers</h1>
           <p className="text-sm text-gray-500 mt-1">
             {activeDrivers} active · {drivers.length - activeDrivers} inactive
+            {driverLimit > 0 && (
+              <span className={drivers.length >= driverLimit ? ' text-red-500 font-medium' : ''}>
+                {' '}· {drivers.length}/{driverLimit} used
+              </span>
+            )}
           </p>
         </div>
         <Dialog
@@ -176,9 +198,9 @@ export default function DriversPage() {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 gap-2">
+            <Button className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={!hasSubscription || (isAtDriverLimit && !editing)}>
               <Plus className="h-4 w-4" />
-              Add Driver
+              {!hasSubscription ? 'Subscribe to Add' : isAtDriverLimit ? 'Driver Limit Reached' : 'Add Driver'}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">

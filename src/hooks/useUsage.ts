@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { SubscriptionTier } from '@/lib/payments/stripe';
+import type { SubscriptionTier } from '@/lib/payments/limits';
 
 interface UsageState {
   /** Receipts used this month */

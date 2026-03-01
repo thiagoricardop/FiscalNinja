@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
@@ -12,6 +12,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Mail, ArrowLeft, CheckCircle2, Inbox } from 'lucide-react';
 
 export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <AuthLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+        </div>
+      </AuthLayout>
+    }>
+      <VerifyEmailPageInner />
+    </Suspense>
+  );
+}
+
+function VerifyEmailPageInner() {
   const searchParams = useSearchParams();
   const email = searchParams.get('email') || '';
 

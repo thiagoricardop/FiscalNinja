@@ -116,7 +116,7 @@ export default function SignupPage() {
 
   return (
     <AuthLayout>
-      <div className="space-y-6">
+      <div className="space-y-5 sm:space-y-6">
         {/* Mobile logo */}
         <div className="lg:hidden text-center mb-2">
           <h2 className="text-xl font-bold text-blue-600">FiscalNinja</h2>
@@ -128,7 +128,7 @@ export default function SignupPage() {
             Start saving 20 hours a month
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            14-day free trial &middot; No credit card required &middot; Cancel anytime
+            14-day free trial &middot; Cancel anytime
           </p>
         </div>
 

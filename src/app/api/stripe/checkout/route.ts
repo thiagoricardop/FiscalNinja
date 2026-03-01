@@ -31,15 +31,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User email not found' }, { status: 400 });
     }
 
-    // Check if already subscribed (must have a stripe_customer_id AND active status)
+    // Check if already subscribed — verify with Stripe, not just DB status
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('subscription_status, stripe_customer_id')
       .eq('id', ownerId)
       .single();
 
-    if (profile?.stripe_customer_id && profile?.subscription_status === 'active') {
-      return NextResponse.json({ alreadySubscribed: true });
+    // Only block if user has a Stripe customer AND an actually active Stripe subscription
+    if (profile?.stripe_customer_id) {
+      try {
+        const subs = await stripe.subscriptions.list({
+          customer: profile.stripe_customer_id,
+          status: 'active',
+          limit: 1,
+        });
+        const trialingSubs = await stripe.subscriptions.list({
+          customer: profile.stripe_customer_id,
+          status: 'trialing',
+          limit: 1,
+        });
+        if (subs.data.length > 0 || trialingSubs.data.length > 0) {
+          return NextResponse.json({ alreadySubscribed: true });
+        }
+      } catch {
+        // If Stripe check fails, let them through to checkout
+      }
     }
 
     // Get or create Stripe customer

@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionBanner } from '@/components/dashboard/SubscriptionGate';
+import { TIER_TRUCK_LIMIT } from '@/lib/payments/limits';
 import {
   Plus,
   Truck as TruckIcon,
@@ -10,6 +13,7 @@ import {
   Trash2,
   Pencil,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +49,7 @@ type TruckRow = {
 
 export default function TrucksPage() {
   const { user } = useUser();
+  const { tier, hasSubscription, loading: subLoading } = useSubscription();
   const [trucks, setTrucks] = useState<TruckRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -114,6 +119,13 @@ export default function TrucksPage() {
         .eq('id', editing.id);
       err = e;
     } else {
+      // Enforce truck limit per plan
+      const truckLimit = tier ? TIER_TRUCK_LIMIT[tier] : 0;
+      if (truckLimit > 0 && trucks.length >= truckLimit) {
+        setError(`Your ${tier} plan allows up to ${truckLimit} trucks. Upgrade to add more.`);
+        setSaving(false);
+        return;
+      }
       const { error: e } = await supabase.from('trucks').insert(payload);
       err = e;
     }
@@ -158,15 +170,25 @@ export default function TrucksPage() {
   }
 
   const activeTrucks = trucks.filter((t) => t.active).length;
+  const truckLimit = tier ? TIER_TRUCK_LIMIT[tier] : 0;
+  const isAtTruckLimit = truckLimit > 0 && trucks.length >= truckLimit;
 
   return (
     <div className="space-y-6">
+      {/* Subscription banner when no plan */}
+      {!subLoading && !hasSubscription && <SubscriptionBanner />}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Trucks</h1>
           <p className="text-sm text-gray-500 mt-1">
             {activeTrucks} active · {trucks.length - activeTrucks} inactive
+            {truckLimit > 0 && (
+              <span className={trucks.length >= truckLimit ? ' text-red-500 font-medium' : ''}>
+                {' '}· {trucks.length}/{truckLimit} used
+              </span>
+            )}
           </p>
         </div>
         <Dialog
@@ -177,9 +199,9 @@ export default function TrucksPage() {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 gap-2">
+            <Button className="bg-blue-600 hover:bg-blue-700 gap-2" disabled={!hasSubscription || (isAtTruckLimit && !editing)}>
               <Plus className="h-4 w-4" />
-              Add Truck
+              {!hasSubscription ? 'Subscribe to Add' : isAtTruckLimit ? 'Truck Limit Reached' : 'Add Truck'}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">

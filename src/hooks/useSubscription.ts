@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { SubscriptionTier } from '@/lib/payments/stripe';
+import type { SubscriptionTier } from '@/lib/payments/limits';
 
 interface SubscriptionState {
   tier: SubscriptionTier | null;
-  status: 'active' | 'trialing' | 'past_due' | 'cancelled' | null;
+  status: 'active' | 'inactive' | 'trialing' | 'past_due' | 'cancelled' | null;
   loading: boolean;
   isActive: boolean;
   isTrialing: boolean;
+  /** true when user has an active or trialing subscription */
+  hasSubscription: boolean;
   cancelAtPeriodEnd: boolean;
   trialEnd: number | null;
   currentPeriodEnd: number | null;
@@ -27,6 +29,7 @@ export function useSubscription(): UseSubscriptionReturn {
     loading: true,
     isActive: false,
     isTrialing: false,
+    hasSubscription: false,
     cancelAtPeriodEnd: false,
     trialEnd: null,
     currentPeriodEnd: null,
@@ -38,12 +41,14 @@ export function useSubscription(): UseSubscriptionReturn {
       const res = await fetch('/api/stripe/subscription');
       if (!res.ok) throw new Error('Failed to fetch subscription');
       const data = await res.json();
+      const active = data.status === 'active' || data.status === 'trialing';
       setState({
         tier: data.tier ?? null,
         status: data.status ?? null,
         loading: false,
-        isActive: data.status === 'active' || data.status === 'trialing',
+        isActive: active,
         isTrialing: data.isTrialing ?? false,
+        hasSubscription: active,
         cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? false,
         trialEnd: data.trialEnd ?? null,
         currentPeriodEnd: data.currentPeriodEnd ?? null,

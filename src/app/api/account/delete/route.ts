@@ -4,9 +4,15 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * DELETE /api/account/delete
- * Permanently deletes the authenticated owner's account and ALL associated data.
- * Requires the user to be an owner (not manager/driver).
- * Cascades via foreign key: auth.users → profiles → trucks, drivers, receipts, etc.
+ *
+ * Role-based account deletion:
+ *
+ * OWNER  — Deletes auth user → cascades to profile → all owned data
+ *          (trucks, drivers, receipts, team_members, etc.)
+ *
+ * MANAGER / DRIVER — Removes team_members record, resets profile
+ *                    (role→owner, parent_user_id→null), then deletes
+ *                    the auth user. The owner's data is NOT touched.
  */
 export async function DELETE(_request: NextRequest) {
   try {
@@ -15,24 +21,42 @@ export async function DELETE(_request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only the account owner can delete the account
-    if (user.role !== 'owner') {
-      return NextResponse.json(
-        { error: 'Only account owners can delete an account' },
-        { status: 403 }
-      );
+    if (user.role === 'owner') {
+      // ─── OWNER: full cascade delete ───
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+      if (error) {
+        console.error('[account/delete] Owner delete error:', error.message);
+        return NextResponse.json(
+          { error: 'Failed to delete account. Please try again.' },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({ success: true });
     }
 
-    // supabaseAdmin.auth.admin.deleteUser deletes the auth.users row.
-    // The profiles table has ON DELETE CASCADE, so all profile data
-    // (trucks, drivers, receipts, team_members, etc.) is also removed.
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+    // ─── MANAGER / DRIVER: clean removal without touching owner data ───
 
+    // 1. Deactivate & unlink team_members records for this user
+    if (user.parent_user_id) {
+      await supabaseAdmin
+        .from('team_members')
+        .update({ active: false, user_id: null })
+        .eq('user_id', user.id);
+    }
+
+    // 2. Reset profile so cascade doesn't ripple to owner data
+    await supabaseAdmin
+      .from('profiles')
+      .update({ role: 'owner' as any, parent_user_id: null })
+      .eq('id', user.id);
+
+    // 3. Delete the auth user (cascades only to this user's own profile row)
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id);
     if (error) {
-      console.error('[account/delete] Supabase admin error:', error.message);
+      console.error('[account/delete] Member delete error:', error.message);
       return NextResponse.json(
         { error: 'Failed to delete account. Please try again.' },
-        { status: 500 }
+        { status: 500 },
       );
     }
 

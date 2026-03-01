@@ -32,7 +32,7 @@ export function PaywallGuard({ children }: { children: React.ReactNode }) {
         </h2>
         <p className="text-gray-500 max-w-sm mb-6">
           This feature is only available to active subscribers. Start a
-          14-day free trial — no credit card required.
+          14-day free trial to unlock all features.
         </p>
         <Button asChild className="bg-blue-600 hover:bg-blue-700 gap-2">
           <Link href="/dashboard/settings">

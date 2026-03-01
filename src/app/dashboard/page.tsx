@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionBanner } from '@/components/dashboard/SubscriptionGate';
 import {
   Receipt,
   Truck,
@@ -14,6 +16,7 @@ import {
   ArrowRight,
   Plus,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +39,7 @@ interface DashboardStats {
 
 export default function DashboardPage() {
   const { user } = useUser();
+  const { hasSubscription, loading: subLoading } = useSubscription();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -146,6 +150,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* Subscription banner when no plan */}
+      {!subLoading && !hasSubscription && <SubscriptionBanner />}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -156,12 +163,19 @@ export default function DashboardPage() {
             Here&apos;s what&apos;s happening with your fleet today.
           </p>
         </div>
-        <Link href="/dashboard/receipts">
-          <Button className="bg-blue-600 hover:bg-blue-700 gap-2">
-            <Plus className="h-4 w-4" />
+        {hasSubscription ? (
+          <Link href="/dashboard/receipts">
+            <Button className="bg-blue-600 hover:bg-blue-700 gap-2">
+              <Plus className="h-4 w-4" />
+              Add Receipt
+            </Button>
+          </Link>
+        ) : (
+          <Button className="bg-blue-600 hover:bg-blue-700 gap-2" disabled title="Subscribe to a plan to unlock this feature">
+            <Lock className="h-4 w-4" />
             Add Receipt
           </Button>
-        </Link>
+        )}
       </div>
 
       {/* Stats Grid */}
@@ -246,12 +260,19 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-400 mt-1">
                   Upload your first receipt to get started.
                 </p>
-                <Link href="/dashboard/receipts">
-                  <Button size="sm" className="mt-4 bg-blue-600 hover:bg-blue-700">
-                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                {hasSubscription ? (
+                  <Link href="/dashboard/receipts">
+                    <Button size="sm" className="mt-4 bg-blue-600 hover:bg-blue-700">
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Add Receipt
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button size="sm" className="mt-4 bg-blue-600 hover:bg-blue-700" disabled title="Subscribe to a plan to unlock this feature">
+                    <Lock className="h-3.5 w-3.5 mr-1.5" />
                     Add Receipt
                   </Button>
-                </Link>
+                )}
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -326,19 +347,34 @@ export default function DashboardPage() {
                 href: '/dashboard/receipts',
                 color: 'text-green-600',
               },
-            ].map((action) => (
-              <Link key={action.label} href={action.href}>
-                <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group">
-                  <div className="h-9 w-9 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-white transition-colors">
-                    <action.icon className={`h-4 w-4 ${action.color}`} />
+            ].map((action) => {
+              const isGated = !hasSubscription && action.label !== 'View Reports';
+              const Wrapper = isGated ? 'div' : Link;
+              const wrapperProps = isGated ? {} : { href: action.href };
+              return (
+                <Wrapper key={action.label} {...(wrapperProps as any)}>
+                  <div className={`flex items-center gap-3 p-3 rounded-lg transition-colors group ${
+                    isGated ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'
+                  }`}>
+                    <div className="h-9 w-9 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-white transition-colors">
+                      {isGated ? (
+                        <Lock className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <action.icon className={`h-4 w-4 ${action.color}`} />
+                      )}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">
+                      {action.label}
+                    </span>
+                    {isGated ? (
+                      <Lock className="ml-auto h-3.5 w-3.5 text-gray-300" />
+                    ) : (
+                      <ArrowRight className="ml-auto h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                    )}
                   </div>
-                  <span className="text-sm font-medium text-gray-700">
-                    {action.label}
-                  </span>
-                  <ArrowRight className="ml-auto h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 transition-colors" />
-                </div>
-              </Link>
-            ))}
+                </Wrapper>
+              );
+            })}
           </CardContent>
         </Card>
       </div>

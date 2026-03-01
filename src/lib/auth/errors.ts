@@ -17,6 +17,12 @@ const ERROR_MAP: Record<string, string> = {
   'Auth session missing!': 'Your session has expired. Please sign in again.',
   'Token has expired or is invalid':
     'This link has expired. Please request a new one.',
+  'Database error saving new user':
+    'A temporary issue prevented account creation. Please try again in a moment.',
+  'Database error':
+    'A temporary issue occurred. Please try again.',
+  'Unable to validate email address':
+    'Please enter a valid email address.',
 };
 
 export function getAuthErrorMessage(error: string): string {

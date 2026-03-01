@@ -72,12 +72,21 @@ export async function GET(_request: NextRequest) {
     } catch (stripeErr) {
       console.error('[stripe/subscription] Stripe API error:', stripeErr);
       // Fall back to DB data if Stripe API fails
+      return NextResponse.json({
+        tier: profile.subscription_tier ?? null,
+        status: profile.subscription_status === 'inactive' ? null : (profile.subscription_status ?? null),
+        isTrialing: false,
+        cancelAtPeriodEnd: false,
+        trialEnd: null,
+        currentPeriodEnd: null,
+      });
     }
 
-    // Fallback: use DB data
+    // Customer exists in Stripe but has NO subscriptions (abandoned checkout)
+    // Return null so the UI knows there is no active plan
     return NextResponse.json({
-      tier: profile.subscription_tier,
-      status: profile.subscription_status,
+      tier: null,
+      status: null,
       isTrialing: false,
       cancelAtPeriodEnd: false,
       trialEnd: null,

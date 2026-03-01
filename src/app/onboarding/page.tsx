@@ -19,6 +19,8 @@ import {
   Loader2,
   ChevronRight,
   Sparkles,
+  User,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,11 +47,18 @@ type DriverEntry = {
 
 type SubscriptionForm = { tier: 'solo' | 'fleet' | 'enterprise' };
 
-const STEPS = [
+type UserRole = 'owner' | 'manager' | 'driver';
+
+const OWNER_STEPS = [
   { icon: Building2, label: 'Company' },
   { icon: Truck, label: 'Trucks' },
   { icon: Users, label: 'Drivers' },
   { icon: CreditCard, label: 'Plan' },
+];
+
+const MEMBER_STEPS = [
+  { icon: User, label: 'Profile' },
+  { icon: ShieldCheck, label: 'Ready' },
 ];
 
 const PLANS = [
@@ -58,7 +67,7 @@ const PLANS = [
     name: 'Solo',
     price: 29,
     description: 'Perfect for owner-operators',
-    features: ['1 truck', '1 driver', 'Receipt scanning', 'Basic reports'],
+    features: ['Up to 5 trucks', 'Up to 5 drivers', '200 receipts/month', 'AI data extraction', 'Excel & CSV export'],
   },
   {
     tier: 'fleet' as const,
@@ -66,10 +75,11 @@ const PLANS = [
     price: 79,
     description: 'For growing businesses',
     features: [
-      'Up to 10 trucks',
-      'Unlimited drivers',
-      'Receipt scanning',
-      'Advanced reports',
+      'Up to 25 trucks',
+      'Up to 25 drivers',
+      '1,000 receipts/month',
+      'Multi-user access',
+      'Advanced reports & PDF',
       'Priority support',
     ],
     popular: true,
@@ -80,10 +90,10 @@ const PLANS = [
     price: 149,
     description: 'For large operations',
     features: [
-      'Unlimited trucks',
-      'Unlimited drivers',
-      'Receipt scanning',
-      'Custom reports',
+      'Up to 100 trucks',
+      'Up to 100 drivers',
+      'Unlimited receipts',
+      'Custom integrations',
       'Dedicated support',
       'API access',
     ],
@@ -100,23 +110,46 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState<UserRole>('owner');
+  const [teamCompanyName, setTeamCompanyName] = useState('');
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [selectedTier, setSelectedTier] = useState<'solo' | 'fleet' | 'enterprise'>('solo');
 
-  // Check if onboarding already complete
+  // Check if onboarding already complete + detect role
   useEffect(() => {
     if (!user) return;
     (async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('onboarding_completed, company_name')
+        .select('onboarding_completed, company_name, role, parent_user_id, full_name')
         .eq('id', user.id)
         .single();
       if (data?.onboarding_completed) {
         router.replace('/dashboard');
+        return;
       }
       if (data?.company_name) {
         setCompanyName(data.company_name);
       }
+      if (data?.full_name) {
+        setFullName(data.full_name);
+      }
+      const detectedRole = (data?.role as UserRole) ?? 'owner';
+      setRole(detectedRole);
+
+      // If team member, fetch the owner's company name
+      if (detectedRole !== 'owner' && data?.parent_user_id) {
+        const { data: ownerProfile } = await supabase
+          .from('profiles')
+          .select('company_name')
+          .eq('id', data.parent_user_id)
+          .single();
+        if (ownerProfile?.company_name) {
+          setTeamCompanyName(ownerProfile.company_name);
+        }
+      }
+      setRoleLoaded(true);
     })();
   }, [user, router]);
 
@@ -209,13 +242,12 @@ export default function OnboardingPage() {
     setSaving(true);
     setError('');
 
-    // Mark onboarding as complete (and optionally record selected tier)
+    // Mark onboarding as complete — do NOT set subscription_tier here.
+    // The tier is activated only after the user completes Stripe checkout
+    // (handled by the checkout.session.completed webhook).
     const { error: e } = await supabase
       .from('profiles')
-      .update({
-        onboarding_completed: true,
-        ...(skipPlan ? {} : { subscription_tier: selectedTier }),
-      })
+      .update({ onboarding_completed: true })
       .eq('id', user.id);
     if (e) { setError(e.message); setSaving(false); return; }
 
@@ -249,23 +281,73 @@ export default function OnboardingPage() {
     }
   };
 
+  // ─── Member-specific: save profile name ──────────────
+
+  const saveMemberProfile = async () => {
+    if (!user) return;
+    if (!fullName.trim()) {
+      setError('Please enter your full name.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    const { error: e } = await supabase
+      .from('profiles')
+      .update({ full_name: fullName.trim() })
+      .eq('id', user.id);
+    if (e) { setError(e.message); setSaving(false); return; }
+    setSaving(false);
+    setStep(1);
+  };
+
+  const finishMemberOnboarding = async () => {
+    if (!user) return;
+    setSaving(true);
+    setError('');
+    const { error: e } = await supabase
+      .from('profiles')
+      .update({ onboarding_completed: true })
+      .eq('id', user.id);
+    if (e) { setError(e.message); setSaving(false); return; }
+    router.push('/driver');
+  };
+
+  // ─── Unified next/skip/back handlers ────────────────
+
+  const isOwner = role === 'owner';
+  const STEPS = isOwner ? OWNER_STEPS : MEMBER_STEPS;
+
   const handleNext = () => {
     setError('');
-    switch (step) {
-      case 0: saveCompany(); break;
-      case 1: saveTrucks(); break;
-      case 2: saveDrivers(); break;
-      case 3: finishOnboarding(false); break;
+    if (isOwner) {
+      switch (step) {
+        case 0: saveCompany(); break;
+        case 1: saveTrucks(); break;
+        case 2: saveDrivers(); break;
+        case 3: finishOnboarding(false); break;
+      }
+    } else {
+      switch (step) {
+        case 0: saveMemberProfile(); break;
+        case 1: finishMemberOnboarding(); break;
+      }
     }
   };
 
   const handleSkipStep = () => {
     setError('');
-    if (step < 3) {
-      setStep((s) => s + 1);
+    if (isOwner) {
+      if (step < 3) {
+        setStep((s) => s + 1);
+      } else {
+        finishOnboarding(true);
+      }
     } else {
-      // Skip plan selection — go to dashboard without Stripe
-      finishOnboarding(true);
+      if (step < 1) {
+        setStep(1);
+      } else {
+        finishMemberOnboarding();
+      }
     }
   };
 
@@ -274,7 +356,7 @@ export default function OnboardingPage() {
     setStep((s) => Math.max(0, s - 1));
   };
 
-  if (!user) {
+  if (!user || !roleLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -339,37 +421,60 @@ export default function OnboardingPage() {
           {/* Step content */}
           <Card className="border-gray-200 shadow-sm">
             <CardContent className="p-6 sm:p-8">
-              {step === 0 && (
-                <StepCompany
-                  companyName={companyName}
-                  setCompanyName={setCompanyName}
-                />
-              )}
-              {step === 1 && (
-                <StepTrucks
-                  fields={truckFields}
-                  register={trucksForm.register}
-                  addTruck={() =>
-                    addTruck({ truck_number: '', license_plate: '', vin: '' })
-                  }
-                  removeTruck={removeTruck}
-                />
-              )}
-              {step === 2 && (
-                <StepDrivers
-                  fields={driverFields}
-                  register={driversForm.register}
-                  addDriver={() =>
-                    addDriver({ name: '', email: '', phone: '' })
-                  }
-                  removeDriver={removeDriver}
-                />
-              )}
-              {step === 3 && (
-                <StepPlan
-                  selected={selectedTier}
-                  onSelect={setSelectedTier}
-                />
+              {isOwner ? (
+                // ─── OWNER STEPS ──────────────────────
+                <>
+                  {step === 0 && (
+                    <StepCompany
+                      companyName={companyName}
+                      setCompanyName={setCompanyName}
+                    />
+                  )}
+                  {step === 1 && (
+                    <StepTrucks
+                      fields={truckFields}
+                      register={trucksForm.register}
+                      addTruck={() =>
+                        addTruck({ truck_number: '', license_plate: '', vin: '' })
+                      }
+                      removeTruck={removeTruck}
+                    />
+                  )}
+                  {step === 2 && (
+                    <StepDrivers
+                      fields={driverFields}
+                      register={driversForm.register}
+                      addDriver={() =>
+                        addDriver({ name: '', email: '', phone: '' })
+                      }
+                      removeDriver={removeDriver}
+                    />
+                  )}
+                  {step === 3 && (
+                    <StepPlan
+                      selected={selectedTier}
+                      onSelect={setSelectedTier}
+                    />
+                  )}
+                </>
+              ) : (
+                // ─── MANAGER / DRIVER STEPS ───────────
+                <>
+                  {step === 0 && (
+                    <StepMemberProfile
+                      fullName={fullName}
+                      setFullName={setFullName}
+                      role={role}
+                      teamCompanyName={teamCompanyName}
+                    />
+                  )}
+                  {step === 1 && (
+                    <StepMemberReady
+                      role={role}
+                      teamCompanyName={teamCompanyName}
+                    />
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -387,17 +492,28 @@ export default function OnboardingPage() {
             </Button>
 
             <div className="flex items-center gap-3">
-              {/* Skip button for optional steps (trucks, drivers, plan) */}
-              {step > 0 && (
-                <Button
-                  variant="ghost"
-                  onClick={handleSkipStep}
-                  disabled={saving}
-                  className="text-gray-500"
-                >
-                  {step === 3 ? 'Skip for now' : 'Skip'}
-                </Button>
-              )}
+              {/* Skip button – owner: optional steps 1-3; member: skip profile */}
+              {isOwner
+                ? step > 0 && (
+                    <Button
+                      variant="ghost"
+                      onClick={handleSkipStep}
+                      disabled={saving}
+                      className="text-gray-500"
+                    >
+                      {step === 3 ? 'Skip for now' : 'Skip'}
+                    </Button>
+                  )
+                : step === 0 && (
+                    <Button
+                      variant="ghost"
+                      onClick={handleSkipStep}
+                      disabled={saving}
+                      className="text-gray-500"
+                    >
+                      Skip
+                    </Button>
+                  )}
 
               <Button
                 onClick={handleNext}
@@ -409,10 +525,15 @@ export default function OnboardingPage() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Saving...
                   </>
-                ) : step === 3 ? (
+                ) : isOwner && step === 3 ? (
                   <>
                     Start Free Trial
                     <Sparkles className="h-4 w-4" />
+                  </>
+                ) : !isOwner && step === MEMBER_STEPS.length - 1 ? (
+                  <>
+                    Go to Dashboard
+                    <ArrowRight className="h-4 w-4" />
                   </>
                 ) : (
                   <>
@@ -424,9 +545,9 @@ export default function OnboardingPage() {
             </div>
           </div>
 
-          {step === 3 && (
+          {isOwner && step === 3 && (
             <p className="text-center text-xs text-gray-400">
-              14-day free trial on all plans · No credit card required · Cancel anytime
+              14-day free trial on all plans · Cancel anytime
             </p>
           )}
         </div>
@@ -472,6 +593,9 @@ function StepCompany({
     </div>
   );
 }
+
+const MAX_ONBOARDING_TRUCKS = 100; // enterprise cap
+const MAX_ONBOARDING_DRIVERS = 100;
 
 function StepTrucks({
   fields,
@@ -535,15 +659,20 @@ function StepTrucks({
             </div>
           </div>
         ))}
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full gap-2"
-          onClick={addTruck}
-        >
-          <Plus className="h-4 w-4" />
-          Add Another Truck
-        </Button>
+        {fields.length < MAX_ONBOARDING_TRUCKS && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2"
+            onClick={addTruck}
+          >
+            <Plus className="h-4 w-4" />
+            Add Another Truck
+          </Button>
+        )}
+        <p className="text-xs text-gray-400 text-center">
+          Truck limits depend on your plan: Solo (5), Fleet (25), Enterprise (100)
+        </p>
       </div>
     </div>
   );
@@ -613,15 +742,20 @@ function StepDrivers({
             </div>
           </div>
         ))}
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full gap-2"
-          onClick={addDriver}
-        >
-          <Plus className="h-4 w-4" />
-          Add Another Driver
-        </Button>
+        {fields.length < MAX_ONBOARDING_DRIVERS && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2"
+            onClick={addDriver}
+          >
+            <Plus className="h-4 w-4" />
+            Add Another Driver
+          </Button>
+        )}
+        <p className="text-xs text-gray-400 text-center">
+          Driver limits depend on your plan: Solo (5), Fleet (25), Enterprise (100)
+        </p>
       </div>
     </div>
   );
@@ -692,6 +826,127 @@ function StepPlan({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* ========================================
+   Member Step Components
+======================================== */
+
+function StepMemberProfile({
+  fullName,
+  setFullName,
+  role,
+  teamCompanyName,
+}: {
+  fullName: string;
+  setFullName: (v: string) => void;
+  role: 'owner' | 'manager' | 'driver';
+  teamCompanyName: string;
+}) {
+  const isDriver = role === 'driver';
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="mx-auto h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center mb-4">
+          <User className="h-6 w-6 text-blue-600" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">
+          Welcome to {teamCompanyName || 'the team'}!
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">
+          {isDriver
+            ? 'Set up your driver profile to start uploading receipts and tracking expenses.'
+            : 'Set up your manager profile to start reviewing and managing team expenses.'}
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4 text-center">
+        <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">
+          Your Role
+        </p>
+        <p className="text-sm font-semibold text-gray-900 mt-0.5 capitalize">
+          {role}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Full Name *</Label>
+        <Input
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="John Doe"
+          autoFocus
+          className="text-center sm:text-left"
+        />
+        <p className="text-xs text-gray-400">
+          This name will appear on reports and receipts.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function StepMemberReady({
+  role,
+  teamCompanyName,
+}: {
+  role: 'owner' | 'manager' | 'driver';
+  teamCompanyName: string;
+}) {
+  const isDriver = role === 'driver';
+
+  const capabilities = isDriver
+    ? [
+        'Upload and photograph receipts',
+        'AI-powered receipt scanning (OCR)',
+        'View your own expense history',
+        'Track expenses by truck',
+      ]
+    : [
+        'View and manage all team expenses',
+        'Review and approve receipts',
+        'Export reports and data',
+        'Manage driver submissions',
+      ];
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="mx-auto h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
+          <ShieldCheck className="h-6 w-6 text-green-600" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">
+          You&apos;re All Set!
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Your <span className="font-medium capitalize">{role}</span> account for{' '}
+          <span className="font-medium">{teamCompanyName || 'the team'}</span> is
+          ready to go.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 space-y-3">
+        <p className="text-sm font-semibold text-gray-900">
+          What you can do as a {role}:
+        </p>
+        <ul className="space-y-2">
+          {capabilities.map((item) => (
+            <li
+              key={item}
+              className="text-sm text-gray-600 flex items-center gap-2"
+            >
+              <Check className="h-4 w-4 text-green-600 shrink-0" />
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <p className="text-center text-xs text-gray-400">
+        Click &quot;Go to Dashboard&quot; to start using FiscalNinja.
+      </p>
     </div>
   );
 }
