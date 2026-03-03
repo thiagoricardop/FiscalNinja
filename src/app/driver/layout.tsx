@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
+import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { PermissionsProvider, usePermissions } from '@/hooks/usePermissions';
 import LogoutButton from '@/components/auth/LogoutButton';
 import Logo from '@/components/brand/Logo';
@@ -46,6 +47,9 @@ function DriverLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useUser();
   const { isDriver, loading: permLoading } = usePermissions();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Auto-logout after inactivity (respects "keep me connected" preference)
+  useSessionTimeout(!!user);
 
   // Guard: only drivers can access /driver/*
   useEffect(() => {

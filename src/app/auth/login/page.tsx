@@ -6,13 +6,15 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { validateEmail } from '@/lib/auth/validation';
 import { getAuthErrorMessage } from '@/lib/auth/errors';
+import { setKeepConnected, isKeepConnected } from '@/hooks/useSessionTimeout';
 import AuthLayout from '@/components/auth/AuthLayout';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Loader2, ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   return (
@@ -32,9 +34,14 @@ function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectedFrom = searchParams.get('redirectedFrom');
+  const reason = searchParams.get('reason');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [keepConnected, setKeepConnectedState] = useState(() =>
+    typeof window !== 'undefined' ? isKeepConnected() : false,
+  );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -54,6 +61,9 @@ function LoginPageInner() {
     }
 
     setLoading(true);
+
+    // Persist the "keep me connected" preference before signing in
+    setKeepConnected(keepConnected);
 
     try {
       const { error: authError, data } = await supabase.auth.signInWithPassword({
@@ -117,6 +127,13 @@ function LoginPageInner() {
             </AlertDescription>
           </Alert>
         )}
+        {reason === 'inactive' && !error && (
+          <Alert>
+            <AlertDescription>
+              You were signed out due to inactivity. Please sign in again.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Form */}
         <form onSubmit={handleLogin} className="space-y-5">
@@ -149,17 +166,48 @@ function LoginPageInner() {
                 Forgot password?
               </Link>
             </div>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              autoComplete="current-password"
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                disabled={loading}
+                className="h-11 pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Keep me connected */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="keepConnected"
+              checked={keepConnected}
+              onCheckedChange={(checked: boolean) => setKeepConnectedState(checked)}
               disabled={loading}
-              className="h-11"
-              required
             />
+            <label
+              htmlFor="keepConnected"
+              className="text-sm text-muted-foreground cursor-pointer select-none"
+            >
+              Keep me connected
+            </label>
           </div>
 
           <Button

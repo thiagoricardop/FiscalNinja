@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { PermissionsProvider, usePermissions } from '@/hooks/usePermissions';
 import type { Permission } from '@/lib/auth/permissions';
 import LogoutButton from '@/components/auth/LogoutButton';
@@ -69,6 +70,10 @@ function DashboardLayoutInner({
   const { user } = useUser();
   const { isActive, isTrialing, cancelAtPeriodEnd, loading: subLoading } = useSubscription();
   const { can } = usePermissions();
+
+  // Auto-logout after inactivity (respects "keep me connected" preference)
+  useSessionTimeout(!!user);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [companyName, setCompanyName] = useState(
     user?.user_metadata?.company_name || 'My Company'

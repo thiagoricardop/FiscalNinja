@@ -61,4 +61,4 @@ Thumbs.db
 src/lib/ocr/test-ocr.ts
 
 # SQL query files
-src/lib/supabase/migrations/*.sql
+./supabase/migrations/*.sql

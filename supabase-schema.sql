@@ -15,6 +15,7 @@ CREATE TYPE subscription_tier AS ENUM ('solo', 'fleet', 'enterprise');
 CREATE TYPE subscription_status AS ENUM ('active', 'cancelled', 'past_due');
 CREATE TYPE expense_category AS ENUM ('fuel', 'tolls', 'maintenance', 'insurance', 'other');
 CREATE TYPE payment_method AS ENUM ('cash', 'credit', 'debit', 'company_card', 'other');
+CREATE TYPE user_role AS ENUM ('owner', 'manager', 'driver');
 
 -- =====================================================
 -- 2. TABLES
@@ -25,6 +26,9 @@ CREATE TABLE profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     company_name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
+    full_name TEXT,
+    role user_role NOT NULL DEFAULT 'owner',
+    parent_user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     subscription_tier subscription_tier DEFAULT 'solo',
     subscription_status subscription_status DEFAULT 'active',
     stripe_customer_id TEXT UNIQUE,
@@ -33,7 +37,7 @@ CREATE TABLE profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-COMMENT ON TABLE profiles IS 'User profiles for trucking company owners/managers';
+COMMENT ON TABLE profiles IS 'User profiles for trucking company owners/managers/drivers';
 
 -- TRUCKS
 CREATE TABLE trucks (
@@ -111,6 +115,26 @@ CREATE TABLE expense_categories (
 
 COMMENT ON TABLE expense_categories IS 'Custom expense categories defined by each user';
 
+-- TEAM_MEMBERS (invite & membership tracking)
+CREATE TABLE team_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    role user_role NOT NULL DEFAULT 'driver',
+    invited_email TEXT NOT NULL,
+    invite_token TEXT UNIQUE,
+    invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    active BOOLEAN NOT NULL DEFAULT true,
+    permissions JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT unique_invite UNIQUE(owner_id, invited_email)
+);
+
+COMMENT ON TABLE team_members IS 'Team invitations and memberships; links owners to managers/drivers';
+
 -- =====================================================
 -- 3. INDEXES
 -- =====================================================
@@ -118,6 +142,15 @@ COMMENT ON TABLE expense_categories IS 'Custom expense categories defined by eac
 -- Profiles
 CREATE INDEX idx_profiles_stripe_customer ON profiles(stripe_customer_id);
 CREATE INDEX idx_profiles_subscription_status ON profiles(subscription_status);
+CREATE INDEX idx_profiles_role ON profiles(role);
+CREATE INDEX idx_profiles_parent ON profiles(parent_user_id);
+
+-- Team Members
+CREATE INDEX idx_team_owner ON team_members(owner_id);
+CREATE INDEX idx_team_user ON team_members(user_id);
+CREATE INDEX idx_team_email ON team_members(invited_email);
+CREATE INDEX idx_team_active ON team_members(owner_id, active) WHERE active = true;
+CREATE INDEX idx_team_invite_token ON team_members(invite_token) WHERE invite_token IS NOT NULL;
 
 -- Trucks
 CREATE INDEX idx_trucks_user_id ON trucks(user_id);
@@ -149,54 +182,109 @@ ALTER TABLE trucks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE drivers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expense_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+
+-- SECURITY-DEFINER helpers (bypass RLS, prevent recursion)
+CREATE OR REPLACE FUNCTION get_my_role()
+RETURNS TEXT AS $$
+  SELECT role::text FROM profiles WHERE id = auth.uid()
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION get_my_parent_user_id()
+RETURNS UUID AS $$
+  SELECT parent_user_id FROM profiles WHERE id = auth.uid()
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION get_my_email()
+RETURNS TEXT AS $$
+  SELECT email FROM profiles WHERE id = auth.uid()
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION effective_owner_id()
+RETURNS UUID AS $$
+  SELECT COALESCE(parent_user_id, id) FROM profiles WHERE id = auth.uid()
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
 
 -- PROFILES
 CREATE POLICY "Users can view own profile"
     ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Team members can view owner profile"
+    ON profiles FOR SELECT USING (id = get_my_parent_user_id());
 CREATE POLICY "Users can update own profile"
     ON profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Users can insert own profile"
     ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
+-- TEAM_MEMBERS
+CREATE POLICY "Owner can view own team"
+    ON team_members FOR SELECT USING (owner_id = auth.uid());
+CREATE POLICY "Members can view their membership"
+    ON team_members FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Owner can insert team members"
+    ON team_members FOR INSERT WITH CHECK (owner_id = auth.uid());
+CREATE POLICY "Owner can update team members"
+    ON team_members FOR UPDATE USING (owner_id = auth.uid());
+CREATE POLICY "Owner can delete team members"
+    ON team_members FOR DELETE USING (owner_id = auth.uid());
+
 -- TRUCKS
 CREATE POLICY "Users can view own trucks"
-    ON trucks FOR SELECT USING (auth.uid() = user_id);
+    ON trucks FOR SELECT USING (user_id = effective_owner_id());
 CREATE POLICY "Users can insert own trucks"
-    ON trucks FOR INSERT WITH CHECK (auth.uid() = user_id);
+    ON trucks FOR INSERT WITH CHECK (user_id = effective_owner_id());
 CREATE POLICY "Users can update own trucks"
-    ON trucks FOR UPDATE USING (auth.uid() = user_id);
+    ON trucks FOR UPDATE USING (user_id = effective_owner_id());
 CREATE POLICY "Users can delete own trucks"
-    ON trucks FOR DELETE USING (auth.uid() = user_id);
+    ON trucks FOR DELETE USING (user_id = effective_owner_id());
 
 -- DRIVERS
 CREATE POLICY "Users can view own drivers"
-    ON drivers FOR SELECT USING (auth.uid() = user_id);
+    ON drivers FOR SELECT USING (user_id = effective_owner_id());
 CREATE POLICY "Users can insert own drivers"
-    ON drivers FOR INSERT WITH CHECK (auth.uid() = user_id);
+    ON drivers FOR INSERT WITH CHECK (user_id = effective_owner_id());
 CREATE POLICY "Users can update own drivers"
-    ON drivers FOR UPDATE USING (auth.uid() = user_id);
+    ON drivers FOR UPDATE USING (user_id = effective_owner_id());
 CREATE POLICY "Users can delete own drivers"
-    ON drivers FOR DELETE USING (auth.uid() = user_id);
+    ON drivers FOR DELETE USING (user_id = effective_owner_id());
 
 -- RECEIPTS
-CREATE POLICY "Users can view own receipts"
-    ON receipts FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Receipts visible by role"
+    ON receipts FOR SELECT
+    USING (
+        CASE
+            WHEN get_my_role() = 'owner'
+                THEN user_id = auth.uid()
+            WHEN get_my_role() = 'manager'
+                THEN user_id = get_my_parent_user_id()
+            WHEN get_my_role() = 'driver'
+                THEN user_id = get_my_parent_user_id()
+                    AND driver_id = (
+                        SELECT d.id FROM drivers d
+                        WHERE d.user_id = get_my_parent_user_id()
+                            AND d.email = get_my_email()
+                        LIMIT 1
+                    )
+            ELSE false
+        END
+    );
 CREATE POLICY "Users can insert own receipts"
-    ON receipts FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update own receipts"
-    ON receipts FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete own receipts"
-    ON receipts FOR DELETE USING (auth.uid() = user_id);
+    ON receipts FOR INSERT WITH CHECK (user_id = effective_owner_id());
+CREATE POLICY "Owner and manager can update receipts"
+    ON receipts FOR UPDATE
+    USING (user_id = effective_owner_id() AND get_my_role() IN ('owner', 'manager'));
+CREATE POLICY "Only owner can delete receipts"
+    ON receipts FOR DELETE
+    USING (user_id = auth.uid() AND get_my_role() = 'owner');
 
 -- EXPENSE CATEGORIES
 CREATE POLICY "Users can view own categories"
-    ON expense_categories FOR SELECT USING (auth.uid() = user_id);
+    ON expense_categories FOR SELECT USING (user_id = effective_owner_id());
 CREATE POLICY "Users can insert own categories"
-    ON expense_categories FOR INSERT WITH CHECK (auth.uid() = user_id);
+    ON expense_categories FOR INSERT WITH CHECK (user_id = effective_owner_id());
 CREATE POLICY "Users can update own categories"
-    ON expense_categories FOR UPDATE USING (auth.uid() = user_id);
+    ON expense_categories FOR UPDATE USING (user_id = effective_owner_id());
 CREATE POLICY "Users can delete own categories"
-    ON expense_categories FOR DELETE USING (auth.uid() = user_id);
+    ON expense_categories FOR DELETE USING (user_id = effective_owner_id());
 
 -- =====================================================
 -- 5. TRIGGERS — auto-update updated_at
@@ -216,6 +304,10 @@ CREATE TRIGGER update_profiles_updated_at
 
 CREATE TRIGGER update_receipts_updated_at
     BEFORE UPDATE ON receipts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_team_members_updated_at
+    BEFORE UPDATE ON team_members
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =====================================================
@@ -244,14 +336,20 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, company_name)
+    INSERT INTO public.profiles (id, email, company_name, full_name, role, parent_user_id)
     VALUES (
         NEW.id,
         NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'company_name', 'My Company')
+        COALESCE(NEW.raw_user_meta_data->>'company_name', 'My Company'),
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NULL),
+        COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'owner'),
+        (NEW.raw_user_meta_data->>'parent_user_id')::UUID
     );
 
-    PERFORM setup_default_categories(NEW.id);
+    -- Only seed default categories for owners
+    IF COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'owner') = 'owner' THEN
+        PERFORM setup_default_categories(NEW.id);
+    END IF;
 
     RETURN NEW;
 END;
